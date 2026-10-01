@@ -5,6 +5,8 @@ struct PomodoroTimerView: View {
     @ObservedObject private var themeStore = BrisaThemeStore.shared
     @ObservedObject private var widget = BrisaPomodoroWidget.shared
     @ObservedObject var model: AppModel
+    @ObservedObject private var countdown = Countdown.shared
+    @ObservedObject private var breaks = BreakStore.shared
     @State private var confirmClear = false
     @State private var showSettings = false
     @State private var editingTime = false
@@ -26,6 +28,7 @@ struct PomodoroTimerView: View {
                     VStack(spacing: 16) {
                         tasksCard
                         soundCard
+                        BreakScreenCard(model: model)
                         todayCard
                         weekCard
                         historyCard
@@ -122,11 +125,15 @@ struct PomodoroTimerView: View {
 
     private var activeTaskChip: some View {
         HStack(spacing: 8) {
-            Image(systemName: model.activePomodoroTask == nil ? "scope" : "target").foregroundStyle(phaseColor)
-            if let task = model.activePomodoroTask {
+            if model.pomodoroPhase != .work, let doing = breaks.current {
+                Image(systemName: breaks.symbol(for: doing)).foregroundStyle(phaseColor)
+                Text("Break: \(doing.title)").lineLimit(1)
+            } else if let task = model.activePomodoroTask {
+                Image(systemName: "target").foregroundStyle(phaseColor)
                 Text(task.title).lineLimit(1)
                 Text("\(task.completedSessions)/\(task.estimate)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
             } else {
+                Image(systemName: "scope").foregroundStyle(phaseColor)
                 Text("No task selected — pick or add one below").foregroundStyle(.secondary)
             }
         }

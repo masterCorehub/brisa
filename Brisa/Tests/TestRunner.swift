@@ -30,7 +30,7 @@ func unwrap<T>(_ value: T?, file: StaticString = #fileID, line: UInt = #line) th
 @main
 enum TestRunner {
     static func main() {
-        let tests = MixSharingTests.all + RoutineScheduleTests.all + SoundSynthesisTests.all + ModeTests.all
+        let tests = MixSharingTests.all + RoutineScheduleTests.all + SoundSynthesisTests.all + ModeTests.all + BreakActivityTests.all
         var failures = 0
         for test in tests {
             do {

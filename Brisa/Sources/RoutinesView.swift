@@ -34,7 +34,7 @@ struct RoutinesView: View {
 
                 templates
 
-                Text("Routines run while Brisa is open, including in the menu bar. Turn on “Open Brisa at login” in Settings so they are always ready. If your Mac was asleep at the time, a routine still runs when it wakes, as long as it's within 15 minutes.")
+                Text("Routines run while Brisa is open, including in the menu bar. Turn on “Open Brisa at login” in Settings so they are always ready. If your Mac was asleep at the time, a routine still runs when it wakes, as long as it's within 15 minutes. A sleeping Mac can't play sounds, so wake-up routines need the Mac to stay awake (for example, plugged in with only the display off).")
                     .font(.caption).foregroundStyle(.tertiary).fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 34).padding(.bottom, 24).padding(.top, 4)

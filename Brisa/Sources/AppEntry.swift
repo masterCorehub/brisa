@@ -71,17 +71,30 @@ struct BrisaApp: App {
                     Button("Settings…") { NotificationCenter.default.post(name: Notification.Name("BrisaShowSettings"), object: nil) }
                         .keyboardShortcut(",")
                 }
+                // ⌘Q quits, like any Mac app. Closing the window (⌘W) keeps Brisa running in the menu bar.
                 CommandGroup(replacing: .appTermination) {
                     Button("Keep Running in Menu Bar") { BrisaWindowActions.moveToMenuBar() }
+                    Button("Quit Brisa") { NSApp.terminate(nil) }
                         .keyboardShortcut("q")
-                    Button("Quit Brisa Completely") { NSApp.terminate(nil) }
-                        .keyboardShortcut("q", modifiers: [.command, .option])
                 }
             }
         MenuBarExtra {
             MenuBarPlayerView(model: model)
         } label: {
-            // While a Pomodoro is running (or paused mid-phase) the menu bar shows the countdown instead of the Brisa icon.
+            MenuBarLabel(model: model)
+        }
+        .menuBarExtraStyle(.window)
+    }
+}
+
+/// While a Pomodoro is running (or paused mid-phase) the menu bar shows the countdown instead of the Brisa icon.
+private struct MenuBarLabel: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject private var countdown = Countdown.shared
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Group {
             if model.isPomodoroRunning || model.pomodoroRemainingSeconds < model.pomodoroTotalSeconds {
                 Label(model.pomodoroTimeText, systemImage: model.isPomodoroRunning ? model.pomodoroPhase.symbol : "pause.fill")
                     .labelStyle(.titleAndIcon).monospacedDigit()
@@ -89,7 +102,11 @@ struct BrisaApp: App {
                 Image(systemName: "wind")
             }
         }
-        .menuBarExtraStyle(.window)
+        // The menu bar icon lives while the main window is closed, so it can reopen it (the window's own listener is gone then).
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("BrisaShowWindow"))) { _ in
+            guard !NSApp.windows.contains(where: { $0.title == "Brisa" && $0.isVisible }) else { return }
+            openWindow(id: "main")
+        }
     }
 }
 
@@ -229,6 +246,7 @@ private struct PlayerWaves: View {
 private struct LiveBrisaPlayer: View {
     @ObservedObject var model: AppModel
     @ObservedObject private var desktop = BrisaDesktopPlayer.shared
+    @ObservedObject private var countdown = Countdown.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var heldPhase = 0.0
     @State private var lastRenderedPhase = 0.0
@@ -262,7 +280,7 @@ private struct LiveBrisaPlayer: View {
                     }.buttonStyle(.plain).accessibilityLabel("Close mini player")
                 }.foregroundStyle(mint)
                 Menu {
-                    ForEach(["Noise", "Water", "Nature", "Spaces", "Imported"], id: \.self) { category in
+                    ForEach(["Noise", "Water", "Nature", "Spaces", "Tones", "Imported"], id: \.self) { category in
                         Menu(category) {
                             ForEach(model.availableLibrary.filter { $0.category == category }) { sound in
                                 Button { model.replaceWith(sound) } label: { Label(sound.name, systemImage: sound.icon) }

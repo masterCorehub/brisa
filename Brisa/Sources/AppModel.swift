@@ -3,6 +3,7 @@ import AppKit
 import AVFoundation
 import Combine
 import UserNotifications
+import SwiftUI
 
 enum PomodoroPhase: String, CaseIterable, Codable {
     case work
@@ -79,6 +80,23 @@ extension PomodoroPhase {
     }
 }
 
+/// The two values that change every second. They live apart from `AppModel` so a running timer only
+/// redraws the views that show it, instead of every view that observes the model.
+@MainActor
+final class Countdown: ObservableObject {
+    static let shared = Countdown()
+    @Published var pomodoroRemainingSeconds = 25 * 60
+    @Published var sleepRemainingSeconds = 0
+}
+
+/// Shows text that depends on the countdown; only this view redraws each second.
+struct CountdownText: View {
+    @ObservedObject private var countdown = Countdown.shared
+    let text: () -> String
+    init(_ text: @escaping () -> String) { self.text = text }
+    var body: some View { Text(text()) }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     static let shared = AppModel()
@@ -94,10 +112,21 @@ final class AppModel: ObservableObject {
     @Published var masterVolume = (UserDefaults.standard.object(forKey: "masterVolume") as? Double) ?? 0.65 {
         didSet { UserDefaults.standard.set(masterVolume, forKey: "masterVolume") }
     }
-    @Published var remainingSeconds = 0
+    /// Sleep timer. Counts down only while sounds play.
+    var remainingSeconds: Int {
+        get { Countdown.shared.sleepRemainingSeconds }
+        set { Countdown.shared.sleepRemainingSeconds = max(0, newValue); synchronizeAudio() }
+    }
+    /// Seconds over which the sleep timer fades the sounds out.
+    static let sleepFadeSeconds = 60
+    static let sleepTimerOptions = [5, 15, 25, 30, 60, 90]
     @Published var error: String?
     @Published var pomodoroPhase: PomodoroPhase = .work { didSet { persistPomodoro() } }
-    @Published var pomodoroRemainingSeconds = 25 * 60 { didSet { persistPomodoro() } }
+    /// Not persisted on every tick: while running, the end date is what's saved.
+    var pomodoroRemainingSeconds: Int {
+        get { Countdown.shared.pomodoroRemainingSeconds }
+        set { if Countdown.shared.pomodoroRemainingSeconds != newValue { Countdown.shared.pomodoroRemainingSeconds = newValue } }
+    }
     @Published var isPomodoroRunning = false { didSet { persistPomodoro() } }
     @Published var completedPomodoros = 0 { didSet { persistPomodoro() } }
     @Published var workMinutes = 25 { didSet { let valid = min(max(workMinutes, 1), 180); if valid != workMinutes { workMinutes = valid } else { syncIdlePomodoro(); persistPomodoro() } } }
@@ -172,6 +201,12 @@ final class AppModel: ObservableObject {
         audio.crossfadeEnabled = crossfadeEnabled
         audio.livingDepth = livingDepth
         loadRoutines()
+        audio.onBufferReady = { [weak self] error in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if let error { self.error = error.localizedDescription } else { self.synchronizeAudio() }
+            }
+        }
         loadModes()
         audio.importedURL = { [weak self] id in self?.importedSounds.first(where: { $0.id == id }).flatMap { $0.storedFile }.map(URL.init(fileURLWithPath:)) }
         volumeBeforeMute = masterVolume > 0 ? masterVolume : 0.65
@@ -602,23 +637,31 @@ final class AppModel: ObservableObject {
     func synchronizeAudio() {
         let placed = pans.filter { levels[$0.key] != nil }
         if placed.count != pans.count { pans = placed }
-        do { try audio.update(levels, pans: pans, playing: isPlaying, master: masterVolume) }
+        do { try audio.update(levels, pans: pans, playing: isPlaying, master: effectiveMasterVolume) }
         catch { self.error = error.localizedDescription; isPlaying = false }
         UserDefaults.standard.set(levels, forKey: "levels")
         UserDefaults.standard.set(pans, forKey: "pans")
         integration?.refreshNowPlaying()
     }
 
+    /// The master volume, lowered while the sleep timer fades out, so moving the slider never undoes the fade.
+    var effectiveMasterVolume: Double {
+        let left = remainingSeconds
+        guard left > 0, left < Self.sleepFadeSeconds else { return masterVolume }
+        return masterVolume * Double(left) / Double(Self.sleepFadeSeconds)
+    }
+
     var nowPlayingTitle: String {
-        let names = levels.keys.compactMap { id in library.first(where: { $0.id == id })?.name }
+        let names = levels.keys.sorted().compactMap { id in availableLibrary.first(where: { $0.id == id })?.name }
         return names.isEmpty ? "No sounds selected" : names.prefix(2).joined(separator: " + ")
     }
 
     private func tickTimer() {
-        if remainingSeconds > 0 {
-            remainingSeconds -= 1
-            if remainingSeconds == 0 { isPlaying = false; synchronizeAudio() }
-            else if remainingSeconds <= 15 { audio.engine.mainMixerNode.outputVolume = Float(masterVolume) * Float(remainingSeconds) / 15 }
+        if remainingSeconds > 0, isPlaying {
+            let left = remainingSeconds - 1
+            Countdown.shared.sleepRemainingSeconds = left
+            if left == 0 { isPlaying = false; synchronizeAudio() }
+            else if left <= Self.sleepFadeSeconds { audio.setMasterVolume(effectiveMasterVolume) }
         }
 
         updatePomodoroRemaining()
@@ -636,7 +679,7 @@ final class AppModel: ObservableObject {
         let finished = pomodoroPhase
         let wasRunning = isPomodoroRunning
         // The cycle position advances on skip too, so 25/5/25/5… always reaches the long break.
-        if finished == .work { completedPomodoros += 1 }
+        if finished == .work { completedPomodoros += 1; BreakStore.shared.clearCurrent() }
         if completed && finished == .work {
             let task = activePomodoroTask?.title ?? ""
             if let index = pomodoroTasks.firstIndex(where: { $0.id == activePomodoroTaskID }) { pomodoroTasks[index].completedSessions += 1 }
@@ -653,12 +696,36 @@ final class AppModel: ObservableObject {
         pomodoroEndDate = nil
         isPomodoroRunning = false
         applyPomodoroSoundscape()
+        if completed ? autoStartPomodoro : wasRunning { startPomodoro() }
         if completed {
-            notifyPomodoroTransition(from: finished, to: pomodoroPhase)
+            // The break screen says the same as the notification, so only one of them appears.
+            let screenShown = !isRestoringPomodoro && BreakScreen.shared.phaseEnded(from: finished)
+            if !screenShown { notifyPomodoroTransition(from: finished, to: pomodoroPhase) }
             if !isRestoringPomodoro { celebratePhaseEnd(finished) }
         }
-        if completed ? autoStartPomodoro : wasRunning { startPomodoro() }
         persistPomodoro()
+    }
+
+    /// Gives the current phase a new length without changing the default, keeping the time already spent.
+    func resizeCurrentPhase(minutes: Int) {
+        let total = min(max(minutes, 1), 180) * 60
+        let elapsed = max(0, pomodoroTotalSeconds - pomodoroRemainingSeconds)
+        pomodoroRemainingSeconds = max(total - elapsed, 60)
+        pomodoroTotalSeconds = max(total, elapsed + pomodoroRemainingSeconds)
+        if isPomodoroRunning { pomodoroEndDate = Date().addingTimeInterval(TimeInterval(pomodoroRemainingSeconds)) }
+        persistPomodoro()
+    }
+
+    /// Goes back to a break that just ended for a few more minutes, from the break screen.
+    func returnToBreak(_ phase: PomodoroPhase, minutes: Int) {
+        guard phase != .work else { return }
+        pomodoroEndDate = nil
+        isPomodoroRunning = false
+        pomodoroPhase = phase
+        pomodoroTotalSeconds = max(minutes, 1) * 60
+        pomodoroRemainingSeconds = pomodoroTotalSeconds
+        applyPomodoroSoundscape()
+        startPomodoro()
     }
 
     private func restorePomodoro() {

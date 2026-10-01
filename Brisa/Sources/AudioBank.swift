@@ -20,10 +20,16 @@ func seamlessLoop(_ source: AVAudioPCMBuffer, seconds: Double = 1.5) -> AVAudioP
  }
  return result
 }
-func loadRecording(_ url:URL) throws -> AVAudioPCMBuffer {
+/// Reads a recording into memory, at most `maxSeconds` of it. Decoded audio is far larger than an MP3,
+/// so long imported files are cut rather than filling the memory (an hour of stereo audio is over 1 GB).
+func loadRecording(_ url:URL, maxSeconds: Double = .infinity) throws -> AVAudioPCMBuffer {
  let file=try AVAudioFile(forReading:url)
- let buffer=AVAudioPCMBuffer(pcmFormat:file.processingFormat,frameCapacity:AVAudioFrameCount(file.length))!
- try file.read(into:buffer)
+ let limit = maxSeconds.isFinite ? AVAudioFramePosition(file.processingFormat.sampleRate * maxSeconds) : file.length
+ let frames = AVAudioFrameCount(max(0, min(file.length, limit)))
+ guard frames > 0, let buffer=AVAudioPCMBuffer(pcmFormat:file.processingFormat,frameCapacity:frames) else {
+  throw NSError(domain:"Brisa",code:4,userInfo:[NSLocalizedDescriptionKey:"This audio file is empty or can't be read."])
+ }
+ try file.read(into:buffer, frameCount: frames)
  return buffer
 }
 func recordingURL(_ path:String) throws -> URL {
@@ -77,26 +83,54 @@ final class AudioBank {
  private var baseVolumes: [String: Float] = [:]
  private var ticker: Timer?
  private var lastTick: TimeInterval = 0
- func buffer(_ id: String) throws -> AVAudioPCMBuffer {
+ /// Longest stretch of an imported file that is kept in memory and looped.
+ static let importedMaxSeconds = 20.0 * 60
+ /// Called on the main thread when a buffer that was being prepared is ready, or failed.
+ var onBufferReady: ((Error?) -> Void)?
+ private var preparing: Set<String> = []
+
+ /// A ready buffer, or nil while it is being prepared in the background. Generating noise or decoding a file
+ /// takes long enough to stall the interface, so it never happens on the main thread.
+ func buffer(_ id: String) throws -> AVAudioPCMBuffer? {
   if let b = buffers[id] { return b }
+  var importedFile: URL?
   if id.hasPrefix("imported-") {
    guard let url = importedURL?(id), FileManager.default.fileExists(atPath: url.path) else {
     throw NSError(domain: "Brisa", code: 3, userInfo: [NSLocalizedDescriptionKey: "Imported audio is unavailable. Relink or remove it from the library."])
    }
-   let b = seamlessLoop(try loadRecording(url)); buffers[id] = b; return b
+   importedFile = url
   }
-  let recordings = [
-   "keyboard": "keyboard-ambient.wav",
-   "realFireplace": "real/real-fireplace.wav",
-   "beachWaves": "real/real-beach-waves.wav",
-   "coffeeShop": "real/real-coffee-shop.wav",
-   "realRain": "real/real-rain.wav",
-   "realForest": "real/real-forest.wav",
-   "realCity": "real/real-city.wav"
-  ]
-  if let path = recordings[id] {let b=seamlessLoop(try loadRecording(recordingURL(path)));buffers[id]=b;return b}
-  if let color = SoundSynthesis.NoiseColor(rawValue: id) {let b=SoundSynthesis.noiseBuffer(color);buffers[id]=b;return b}
-  if let tone = SoundSynthesis.binauralTones[id] {let b=SoundSynthesis.toneBuffer(tone);buffers[id]=b;return b}
+  guard preparing.insert(id).inserted else { return nil }
+  DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+   let result = Result { try AudioBank.makeBuffer(id, importedFile: importedFile) }
+   DispatchQueue.main.async {
+    guard let self else { return }
+    self.preparing.remove(id)
+    switch result {
+    case .success(let b): self.buffers[id] = b; self.onBufferReady?(nil)
+    case .failure(let error): self.onBufferReady?(error)
+    }
+   }
+  }
+  return nil
+ }
+
+ private static let recordings = [
+  "keyboard": "keyboard-ambient.wav",
+  "realFireplace": "real/real-fireplace.wav",
+  "beachWaves": "real/real-beach-waves.wav",
+  "coffeeShop": "real/real-coffee-shop.wav",
+  "realRain": "real/real-rain.wav",
+  "realForest": "real/real-forest.wav",
+  "realCity": "real/real-city.wav"
+ ]
+
+ /// Builds a sound's loop. Pure work with no shared state, so it can run off the main thread.
+ static func makeBuffer(_ id: String, importedFile: URL?) throws -> AVAudioPCMBuffer {
+  if let importedFile { return seamlessLoop(try loadRecording(importedFile, maxSeconds: importedMaxSeconds)) }
+  if let path = recordings[id] { return seamlessLoop(try loadRecording(recordingURL(path))) }
+  if let color = SoundSynthesis.NoiseColor(rawValue: id) { return SoundSynthesis.noiseBuffer(color) }
+  if let tone = SoundSynthesis.binauralTones[id] { return SoundSynthesis.toneBuffer(tone) }
   let rate = 24000.0, count = 24000 * 16
   let format = AVAudioFormat(standardFormatWithSampleRate:rate,channels:1)!
   let b = AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(count))!
@@ -129,8 +163,7 @@ final class AudioBank {
    }
    p[i]=Float(tanh(x))
   }
-  let loop = seamlessLoop(b)
-  buffers[id]=loop; return loop
+  return seamlessLoop(b)
  }
  /// After the output device changes the engine stops and its player nodes go stale.
  /// Tear them down so the next `update` rebuilds a clean graph on the new device.
@@ -153,7 +186,8 @@ final class AudioBank {
   }
   for (id,level) in levels where level > 0 {
    if players[id] == nil {
-    let b=try buffer(id), node=AVAudioPlayerNode(); engine.attach(node)
+    guard let b=try buffer(id) else { continue }   // joins the mix once it's ready
+    let node=AVAudioPlayerNode(); engine.attach(node)
     engine.connect(node,to:engine.mainMixerNode,format:b.format)
     node.volume = 0; baseVolumes[id] = 0
     node.scheduleBuffer(b,at:nil,options:.loops); players[id]=node
@@ -176,6 +210,9 @@ final class AudioBank {
   }
   startTickerIfNeeded()
  }
+
+ /// Used by the sleep timer's fade, which changes every second without touching the sounds.
+ func setMasterVolume(_ volume: Double) { engine.mainMixerNode.outputVolume = Float(volume) }
 
  private func applyVolume(_ id: String, _ node: AVAudioPlayerNode, at time: TimeInterval) {
   let base = baseVolumes[id] ?? 0

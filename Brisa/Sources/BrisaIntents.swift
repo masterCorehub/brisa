@@ -181,7 +181,6 @@ struct SetSleepTimerIntent: AppIntent {
     @MainActor func perform() async throws -> some IntentResult {
         let model = AppModel.shared
         model.remainingSeconds = max(0, minutes) * 60
-        model.synchronizeAudio()
         return .result()
     }
 }

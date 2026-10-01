@@ -79,6 +79,7 @@ final class BrisaPomodoroWidget: NSObject, ObservableObject, NSWindowDelegate {
 
 struct PomodoroWidgetView: View {
     @ObservedObject var model: AppModel
+    @ObservedObject private var countdown = Countdown.shared
     @ObservedObject private var widget = BrisaPomodoroWidget.shared
     @ObservedObject private var themeStore = BrisaThemeStore.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

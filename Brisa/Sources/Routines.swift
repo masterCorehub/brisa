@@ -305,7 +305,7 @@ enum RoutineTemplates {
                 RoutineAction(kind: .setVolume, number: 40), RoutineAction(kind: .playSound, choice: "scene:goodNight"),
                 RoutineAction(kind: .sleepTimer, number: 30)])
         },
-        Template(id: "gentleWake", title: "Gentle wake-up", detail: "7:00 every day: forest birds at low volume.", symbol: "bird") {
+        Template(id: "gentleWake", title: "Gentle wake-up", detail: "7:00 every day: forest birds at low volume. The Mac must be awake at that time.", symbol: "bird") {
             Routine(name: "Gentle wake-up", hour: 7, minute: 0, weekdays: Routine.everyDay, actions: [
                 RoutineAction(kind: .setVolume, number: 25), RoutineAction(kind: .playSound, choice: "realForest"),
                 RoutineAction(kind: .sleepTimer, number: 45)])

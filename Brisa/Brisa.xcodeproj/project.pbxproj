@@ -24,6 +24,9 @@
 		939398DBB19571CA42D723CF /* PomodoroTimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4941FA5761A0A6F1528FB917 /* PomodoroTimerView.swift */; };
 		7C1E5A0B3D2F4A6981B0C4D7 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E9B6D4F1A8C3057B6E2A91C /* Theme.swift */; };
 		B4D80C2E6F1A93577E2D5A08 /* PomodoroWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = A19F3C7E5B2D40886C1E7D35 /* PomodoroWidget.swift */; };
+		6B260CC4E10A47A498F5C5BE /* BreakScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB13E9A2139E4C0D8C77C6CC /* BreakScreen.swift */; };
+		7E4BD2D04E2F41B489898753 /* BreakActivitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873BF2EBBF8E409DB7E971D5 /* BreakActivitiesView.swift */; };
+		17AE60E40130453B85CA5EB3 /* BreakActivities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E1FF787CE78443AB2D20FA8 /* BreakActivities.swift */; };
 		D3A61F9B2C8E47501A6B3E90 /* SystemIntegration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F0C82E4A7B1396D0E4A7C21 /* SystemIntegration.swift */; };
 		8B2E4D7A1C5F60932E8A4B17 /* Confetti.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7A91E3B5D2084F6A1B7E5C3 /* Confetti.swift */; };
 		3E7A5C1D9B4F2086A5D1C7E2 /* YouTubeVideos.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2B6D803A9E41C57B0D8E4A6 /* YouTubeVideos.swift */; };
@@ -56,6 +59,9 @@
 		4941FA5761A0A6F1528FB917 /* PomodoroTimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroTimerView.swift; sourceTree = "<group>"; };
 		2E9B6D4F1A8C3057B6E2A91C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		A19F3C7E5B2D40886C1E7D35 /* PomodoroWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PomodoroWidget.swift; sourceTree = "<group>"; };
+		AB13E9A2139E4C0D8C77C6CC /* BreakScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakScreen.swift; sourceTree = "<group>"; };
+		873BF2EBBF8E409DB7E971D5 /* BreakActivitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakActivitiesView.swift; sourceTree = "<group>"; };
+		6E1FF787CE78443AB2D20FA8 /* BreakActivities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BreakActivities.swift; sourceTree = "<group>"; };
 		5F0C82E4A7B1396D0E4A7C21 /* SystemIntegration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemIntegration.swift; sourceTree = "<group>"; };
 		C7A91E3B5D2084F6A1B7E5C3 /* Confetti.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Confetti.swift; sourceTree = "<group>"; };
 		F2B6D803A9E41C57B0D8E4A6 /* YouTubeVideos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeVideos.swift; sourceTree = "<group>"; };
@@ -106,6 +112,9 @@
 				4941FA5761A0A6F1528FB917 /* PomodoroTimerView.swift */,
 				2E9B6D4F1A8C3057B6E2A91C /* Theme.swift */,
 				A19F3C7E5B2D40886C1E7D35 /* PomodoroWidget.swift */,
+				AB13E9A2139E4C0D8C77C6CC /* BreakScreen.swift */,
+				873BF2EBBF8E409DB7E971D5 /* BreakActivitiesView.swift */,
+				6E1FF787CE78443AB2D20FA8 /* BreakActivities.swift */,
 				5F0C82E4A7B1396D0E4A7C21 /* SystemIntegration.swift */,
 				C7A91E3B5D2084F6A1B7E5C3 /* Confetti.swift */,
 				F2B6D803A9E41C57B0D8E4A6 /* YouTubeVideos.swift */,
@@ -237,6 +246,9 @@
 				939398DBB19571CA42D723CF /* PomodoroTimerView.swift in Sources */,
 				7C1E5A0B3D2F4A6981B0C4D7 /* Theme.swift in Sources */,
 				B4D80C2E6F1A93577E2D5A08 /* PomodoroWidget.swift in Sources */,
+				6B260CC4E10A47A498F5C5BE /* BreakScreen.swift in Sources */,
+				7E4BD2D04E2F41B489898753 /* BreakActivitiesView.swift in Sources */,
+				17AE60E40130453B85CA5EB3 /* BreakActivities.swift in Sources */,
 				D3A61F9B2C8E47501A6B3E90 /* SystemIntegration.swift in Sources */,
 				8B2E4D7A1C5F60932E8A4B17 /* Confetti.swift in Sources */,
 				3E7A5C1D9B4F2086A5D1C7E2 /* YouTubeVideos.swift in Sources */,
